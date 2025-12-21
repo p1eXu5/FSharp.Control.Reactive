@@ -2,6 +2,7 @@
 
 open NUnit.Framework
 open FsCheck
+open FsCheck.FSharp
 open FSharp.Control.Reactive
 open FSharp.Control.Reactive.Testing
 
@@ -12,7 +13,7 @@ type EmitTest () =
     
     [<SetUp>]
     member __.Setup () =
-        Arb.register<GenTestNotification> () |> ignore
+        ArbMap.mergeWith<GenTestNotification> ArbMap.defaults |> ignore
 
     [<Test>]
     member __.``Notifications gets passed through`` () =

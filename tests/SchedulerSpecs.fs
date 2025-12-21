@@ -11,9 +11,10 @@ open System.Reactive
 open Microsoft.Reactive.Testing
 open System.Reactive.Disposables
 open FSharp.Control.Reactive.Scheduler
+open NUnit.Framework.Legacy
 
-let equal x y = Assert.AreEqual (x, y)
-let isTrue x = Assert.True (x : bool)
+let equal x y = ClassicAssert.AreEqual (x, y)
+let isTrue x = ClassicAssert.True (x : bool)
 
 [<Test>]
 let ``schedule immediate non-recursive action`` () =

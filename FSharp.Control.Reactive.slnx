@@ -24,9 +24,11 @@
     <File Path="README.md" />
     <File Path="RELEASE_NOTES.md" />
   </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/FSharp.Control.Reactive.Testing/FSharp.Control.Reactive.Testing.fsproj" />
+    <Project Path="src/FSharp.Control.Reactive/FSharp.Control.Reactive.fsproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/FSharp.Control.Reactive.Tests.fsproj" />
   </Folder>
-  <Project Path="src/FSharp.Control.Reactive.Testing/FSharp.Control.Reactive.Testing.fsproj" />
-  <Project Path="src/FSharp.Control.Reactive/FSharp.Control.Reactive.fsproj" />
 </Solution>

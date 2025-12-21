@@ -2,6 +2,7 @@
 
 open NUnit.Framework
 open FsCheck
+open FsCheck.FSharp
 open FSharp.Control.Reactive
 open FSharp.Control.Reactive.Testing
 
@@ -39,8 +40,8 @@ let ``Behavior Subject remembers last emited value for next observers`` () =
                     sch s (Subject.onNext y)
             
             Subject.onCompleted s |> ignore
-            (TestObserver.nexts before = [x; y]) |@ "Subscribe before 'OnNexts'" .&.
-            (TestObserver.nexts after = [y]) |@ "Subscribe after 'OnNexts'"
+            (TestObserver.nexts before = [x; y]) |> Prop.label "Subscribe before 'OnNexts'"
+            .&. (TestObserver.nexts after = [y]) |> Prop.label "Subscribe after 'OnNexts'"
 
 [<Test>]
 let ``Replay Subject re-emits notificatiosn to future observers`` () =

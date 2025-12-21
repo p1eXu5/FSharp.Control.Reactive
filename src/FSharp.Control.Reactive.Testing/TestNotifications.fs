@@ -74,8 +74,8 @@ module TestNotification =
     /// Maps the OnError recorded notifications of the specified list to other values.
     let mapErrors f = (errors >> List.map f)
 
-open FsCheck
 
+open FsCheck.FSharp
 open TestNotification
 
 type GenTestNotification =
@@ -94,7 +94,8 @@ type GenTestNotification =
 
         let realisticMs = 100L
         let growingNumbers l =
-            Arb.generate<int64 * 'a>
+            ArbMap.defaults
+            |> ArbMap.generate<int64 * 'a>
             |> Gen.map (fun (x, y) -> (abs x) + realisticMs, y)
             |> Gen.listOfLength l
             |> Gen.map (List.sortBy fst)

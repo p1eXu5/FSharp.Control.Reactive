@@ -7,22 +7,24 @@ open System.Reactive.Linq
 open Microsoft.Reactive.Testing
 open NUnit.Framework
 open FsCheck
+open FsCheck.FSharp
 open FSharp.Control.Reactive
 open FSharp.Control.Reactive.Builders
 open FSharp.Control.Reactive.Observable
 open FSharp.Control.Reactive.Testing
 open FSharp.Control.Reactive.Testing.TestNotification
 open System.Reactive.Subjects
+open NUnit.Framework.Legacy
 
 
-let ``should be`` expectedNext expectedError expectedCompleted (observable:'a IObservable) =
+let ``should be`` (expectedNext: int) (expectedError: bool) (expectedCompleted: bool) (observable:'a IObservable) =
     let next = ref 0
     let error = ref false
     let completed = ref false
 
     let subscription = observable |> Observable.subscribeWithCallbacks (fun _ -> incr next) (fun _ -> error := true) (fun () -> completed := true)
 
-    Assert.That(!next, Is.EqualTo expectedNext)
+    Assert.That(!next, Is.EqualTo<int>(expectedNext))
     Assert.That(!error, Is.EqualTo expectedError)
     Assert.That(!completed, Is.EqualTo expectedCompleted)
 
@@ -155,7 +157,7 @@ let ``RxQueryBuilder.Head can return first item`` () =
         for x in test do
         head }
 
-    query |> Observable.subscribe (fun x -> Assert.AreEqual(1, x)) |> ignore
+    query |> Observable.subscribe (fun x -> ClassicAssert.AreEqual(1, x)) |> ignore
 
 [<Test>]
 let ``RxQueryBuilder.ExactlyOne can returns only one item`` () =
@@ -165,7 +167,7 @@ let ``RxQueryBuilder.ExactlyOne can returns only one item`` () =
         for x in test do
         exactlyOne }
 
-    query |> Observable.subscribe (fun x -> Assert.AreEqual(1, x)) |> ignore
+    query |> Observable.subscribe (fun x -> ClassicAssert.AreEqual(1, x)) |> ignore
 
 [<Test>]
 let ``groupBy in Rx builder matches GroupBy method`` () =
@@ -176,7 +178,7 @@ let ``groupBy in Rx builder matches GroupBy method`` () =
         yield grp.Key        
     }
 
-    Assert.IsTrue([0; 1; 2;] |> Observable.equalsSeq query |> Observable.wait)
+    ClassicAssert.IsTrue([0; 1; 2;] |> Observable.equalsSeq query |> Observable.wait)
 
 [<Test>]
 let ``groupByJoin in Rx builder matches GroupByJoin method`` () =
@@ -209,7 +211,7 @@ let ``groupByJoin in Rx builder matches GroupByJoin method`` () =
 
     let expected = ["Batch1", "Production=0"; "Batch2", "Production=3"]
     let actual = query |> Observable.take expected.Length 
-    Assert.IsTrue(expected |> Observable.equalsSeq actual |> Observable.wait)
+    ClassicAssert.IsTrue(expected |> Observable.equalsSeq actual |> Observable.wait)
 
 [<Test>]
 let ``RxQueryBuilder.ExactlyOne throws when source contains more than one item`` () =
@@ -256,7 +258,7 @@ let ``distinctKey uses the key function to decide whether an element has been se
         |> Observable.subscribe(result.Add) 
         |> ignore
 
-    Assert.That(result, Is.EqualTo expected)
+    Assert.That(result, Is.EqualTo<int * int>(expected))
 
 [<Test>]
 let ``distinctKeyCompare uses the key function and the comparer to decide whether an element has been seen before``() =
@@ -270,7 +272,7 @@ let ``distinctKeyCompare uses the key function and the comparer to decide whethe
         |> Observable.subscribe(result.Add) 
         |> ignore
 
-    Assert.That(result, Is.EqualTo expected)
+    Assert.That(result, Is.EqualTo<int * int>(expected))
 
 [<Test>]
 let ``distinctUntilChangedKey uses the key function to decide whether an element has been seen before``() =
@@ -281,7 +283,7 @@ let ``distinctUntilChangedKey uses the key function to decide whether an element
         |> Observable.subscribe(result.Add) 
         |> ignore
 
-    Assert.That(result, Is.EqualTo expected)
+    Assert.That(result, Is.EqualTo<int * int>(expected))
 
 [<Test>]
 let ``distinctUntilChangedKeyCompare uses the key function and the comparer to decide whether an element has been seen before``() =
@@ -295,7 +297,7 @@ let ``distinctUntilChangedKeyCompare uses the key function and the comparer to d
         |> Observable.subscribe(result.Add) 
         |> ignore
 
-    Assert.That(result, Is.EqualTo expected)
+    Assert.That(result, Is.EqualTo<int * int>(expected))
 
 [<Test>]
 let ``ofSeqOn enumerates its sequence on the specified scheduler``() =
@@ -309,7 +311,7 @@ let ``ofSeqOn enumerates its sequence on the specified scheduler``() =
 
     Assert.That(result, Is.Empty)
     scheduler.Start()
-    Assert.That(result, Is.EqualTo items)
+    Assert.That(result, Is.EqualTo<int> items)
 
 [<Test>]
 let ``intervalOn produces a value at the specified rate on the supplied scheduler``() =
@@ -341,13 +343,13 @@ let ``throttleOn produces a value at the specified rate on the supplied schedule
     obs.OnNext(1);                 Assert.That(result, Is.Empty)
     scheduler.AdvanceBy oneSecond; Assert.That(result, Is.Empty)
     scheduler.AdvanceBy oneSecond
-    Assert.That(result, Is.EqualTo [1] )
+    Assert.That(result, Is.EqualTo<int> [1] )
 
     obs.OnNext(2)
-    scheduler.AdvanceBy oneSecond; Assert.That(result, Is.EqualTo [1] )
+    scheduler.AdvanceBy oneSecond; Assert.That(result, Is.EqualTo<int> [1] )
     obs.OnNext(3)
-    scheduler.AdvanceBy oneSecond; Assert.That(result, Is.EqualTo [1] )
-    scheduler.AdvanceBy oneSecond; Assert.That(result, Is.EqualTo [1; 3] )
+    scheduler.AdvanceBy oneSecond; Assert.That(result, Is.EqualTo<int> [1] )
+    scheduler.AdvanceBy oneSecond; Assert.That(result, Is.EqualTo<int> [1; 3] )
 
 [<Test>]
 let ``combineLatest calls map function with pairs of latest values``() =
@@ -366,11 +368,11 @@ let ``combineLatest calls map function with pairs of latest values``() =
     obs1.OnNext 2
     Assert.That(result, Is.Empty)
     obs2.OnNext 10
-    Assert.That(result, Is.EqualTo [ 7 ] )
+    Assert.That(result, Is.EqualTo<int> [ 7 ] )
     obs2.OnNext 20                
-    Assert.That(result, Is.EqualTo [ 7; 12 ] )
+    Assert.That(result, Is.EqualTo<int> [ 7; 12 ] )
     obs1.OnNext 3                 
-    Assert.That(result, Is.EqualTo [ 7; 12; 13 ] )
+    Assert.That(result, Is.EqualTo<int> [ 7; 12; 13 ] )
 
 [<Test>]
 let ``combineLatestArray produces arrays of latest values``() =
@@ -387,11 +389,11 @@ let ``combineLatestArray produces arrays of latest values``() =
     obs1.OnNext 2
     Assert.That(result, Is.Empty)
     obs2.OnNext 10
-    Assert.That(result, Is.EqualTo [ [| 2; 10 |] ] )
+    Assert.That(result, Is.EqualTo<int[]> [ [| 2; 10 |] ] )
     obs2.OnNext 20                
-    Assert.That(result, Is.EqualTo [ [| 2; 10 |]; [| 2; 20 |] ] )
+    Assert.That(result, Is.EqualTo<int[]> [ [| 2; 10 |]; [| 2; 20 |] ] )
     obs1.OnNext 3                 
-    Assert.That(result, Is.EqualTo [ [| 2; 10 |]; [| 2; 20 |]; [| 3; 20 |] ] )
+    Assert.That(result, Is.EqualTo<int[]> [ [| 2; 10 |]; [| 2; 20 |]; [| 3; 20 |] ] )
 
 [<Test>]
 let ``combineLatestSeq produces lists of latest values``() =
@@ -409,11 +411,11 @@ let ``combineLatestSeq produces lists of latest values``() =
     obs1.OnNext 2
     Assert.That(result, Is.Empty)
     obs2.OnNext 10
-    Assert.That(result, Is.EqualTo [ [2; 10] ] )
+    Assert.That(result, Is.EqualTo<int list> [ [2; 10] ] )
     obs2.OnNext 20                
-    Assert.That(result, Is.EqualTo [ [2; 10]; [2; 20] ] )
+    Assert.That(result, Is.EqualTo<int list> [ [2; 10]; [2; 20] ] )
     obs1.OnNext 3                 
-    Assert.That(result, Is.EqualTo [ [2; 10]; [2; 20]; [3; 20] ] )
+    Assert.That(result, Is.EqualTo<int list> [ [2; 10]; [2; 20]; [3; 20] ] )
 
 [<Test>]
 let ``combineLatestSeqMap applies map function to latest values``() =
@@ -432,11 +434,11 @@ let ``combineLatestSeqMap applies map function to latest values``() =
     obs1.OnNext 2
     Assert.That(result, Is.Empty)
     obs2.OnNext 10
-    Assert.That(result, Is.EqualTo [ 12 ] )
+    Assert.That(result, Is.EqualTo<int> [ 12 ] )
     obs2.OnNext 20                
-    Assert.That(result, Is.EqualTo [ 12; 22 ] )
+    Assert.That(result, Is.EqualTo<int> [ 12; 22 ] )
     obs1.OnNext 3                 
-    Assert.That(result, Is.EqualTo [ 12; 22; 23 ] )
+    Assert.That(result, Is.EqualTo<int> [ 12; 22; 23 ] )
 
 [<Test>]
 let ``replay replays all notifications upon subscription``() =
@@ -454,9 +456,9 @@ let ``replay replays all notifications upon subscription``() =
     obs |> Observable.subscribe(result.Add) 
         |> ignore
 
-    Assert.That(result, Is.EqualTo [ 1; 2; 3 ] )
+    Assert.That(result, Is.EqualTo<int> [ 1; 2; 3 ] )
     subject.OnNext 4
-    Assert.That(result, Is.EqualTo [ 1; 2; 3; 4 ] )
+    Assert.That(result, Is.EqualTo<int> [ 1; 2; 3; 4 ] )
 
 
 [<Test>]
@@ -475,9 +477,9 @@ let ``replayBuffer replays only the required count of notifications upon subscri
     obs |> Observable.subscribe(result.Add) 
         |> ignore
 
-    Assert.That(result, Is.EqualTo [ 2; 3 ] )
+    Assert.That(result, Is.EqualTo<int> [ 2; 3 ] )
     subject.OnNext 4
-    Assert.That(result, Is.EqualTo [ 2; 3; 4 ] )
+    Assert.That(result, Is.EqualTo<int> [ 2; 3; 4 ] )
 
 
 [<Test>]
@@ -500,11 +502,11 @@ let ``replayBufferOn replays only the required count of notifications upon subsc
         |> ignore
 
     scheduler.Start()
-    Assert.That(result, Is.EqualTo [ 2; 3 ] )
+    Assert.That(result, Is.EqualTo<int> [ 2; 3 ] )
     scheduler.AdvanceBy(oneSecond); subject.OnNext 4
     scheduler.AdvanceBy(oneSecond);
     printf "9: %A\n" (result |> List.ofSeq)
-    Assert.That(result, Is.EqualTo [ 2; 3; 4 ] )
+    Assert.That(result, Is.EqualTo<int> [ 2; 3; 4 ] )
     printf "10: %A\n" (result |> List.ofSeq)
 
 [<Test>]
@@ -528,7 +530,7 @@ let ``replayWindowOn replays only the required time range of notifications upon 
         |> ignore
 
     scheduler.Start()
-    Assert.That(result, Is.EqualTo [ 2; 3; 4 ] )
+    Assert.That(result, Is.EqualTo<int> [ 2; 3; 4 ] )
 
 [<Test>]
 let ``replayBufferWindowOn replays only the required time range of notifications upon subscription``() =
@@ -551,7 +553,7 @@ let ``replayBufferWindowOn replays only the required time range of notifications
         |> ignore
 
     scheduler.Start()
-    Assert.That(result, Is.EqualTo [ 2; 3; 4 ] )
+    Assert.That(result, Is.EqualTo<int> [ 2; 3; 4 ] )
 
 [<Test>]
 let ``replayBufferWindowOn replays only the required count of notifications upon subscription``() =
@@ -574,7 +576,7 @@ let ``replayBufferWindowOn replays only the required count of notifications upon
         |> ignore
 
     scheduler.Start()
-    Assert.That(result, Is.EqualTo [ 3; 4 ] )
+    Assert.That(result, Is.EqualTo<int> [ 3; 4 ] )
 
 [<Test>]
 let ``timestampOn uses timestamps from the supplied scheduler``() =
@@ -648,7 +650,7 @@ let ``Observable.subscribeOn should run subscription on another thread`` () =
     use x = obs
             |> Observable.subscribeOn(scheduler)
             |> Observable.subscribe(result.Add)
-    Assert.IsTrue(result |> Seq.isEmpty)
+    ClassicAssert.IsTrue(result |> Seq.isEmpty)
 
     scheduler.AdvanceBy(oneSecond)
     Assert.That(result.[0], Is.EqualTo expected)
@@ -738,7 +740,7 @@ let ``serve subscribes to all created observables`` () =
         |> Observable.takeUntilOther (Observable.timerSpan (TimeSpan.FromMilliseconds 100.))
         |> TestSchedule.subscribeTestObserver sch
         |> TestObserver.nexts
-        |> fun xs -> Assert.Greater (xs.Length, 10)
+        |> fun xs -> ClassicAssert.Greater (xs.Length, 10)
 
 [<TestFixture>]
 type ObservableTests_WithTestNotifications () =
@@ -752,8 +754,8 @@ type ObservableTests_WithTestNotifications () =
 
     [<SetUp>]
     member __.Setup () =
-        Arb.register<GenTestNotification> () |> ignore
-        Arb.register<ObservableTests_WithTestNotifications> () |> ignore
+        ArbMap.mergeWith<GenTestNotification> ArbMap.defaults |> ignore
+        ArbMap.mergeWith<ObservableTests_WithTestNotifications> ArbMap.defaults |> ignore
 
     [<Test>]
     member __. ``choose should only pick 'Some' emits`` () =
@@ -816,7 +818,7 @@ type ObservableTests_WithTestNotifications () =
         |> Observable.exhaustMap (fun _ -> source |> Observable.take 5)
         |> Observable.toEnumerable
         |> Seq.toList
-        |> fun ys -> Assert.AreEqual ([0L..3L], ys)
+        |> fun ys -> ClassicAssert.AreEqual ([0L..3L], ys)
 
     [<Test>]
     member __. ``catchOption maps to 'None' type when 'OnError'`` () =

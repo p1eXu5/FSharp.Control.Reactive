@@ -39,7 +39,7 @@ let ``Disposable.compose follows ordering`` () =
     //dispose the entire range
     composite.Dispose()
 
-    Assert.That(contents (), Is.EqualTo(range))
+    Assert.That(contents (), Is.EqualTo<int>(range))
     
 [<Test>]
 let ``Disposals happen only once`` () =    
@@ -56,12 +56,12 @@ let ``Disposals happen only once`` () =
 
         group1.Dispose()
         //group1 isn't mutated and disposes in order
-        Assert.That(contents (), Is.EqualTo([1; 2;]))
+        Assert.That(contents (), Is.EqualTo<int>([1; 2;]))
         
         group2.Dispose()
         //group1 has already been disposed,
         //so only disp3.Dispose() should happen
-        Assert.That(contents (), Is.EqualTo([1; 2; 3]))
+        Assert.That(contents (), Is.EqualTo<int>([1; 2; 3]))
         ()
     
 [<Test>]
@@ -81,6 +81,6 @@ let ``CompositeDispose disposes correctly inner disposables`` () =
 
         compDisp.Dispose()
         
-        Assert.That(contents (), Is.EqualTo([1; 2; 3;]))
+        Assert.That(contents (), Is.EqualTo<int>([1; 2; 3;]))
         ()
 

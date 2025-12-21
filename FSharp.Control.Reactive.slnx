@@ -1,0 +1,32 @@
+<Solution>
+  <Folder Name="/docs/" />
+  <Folder Name="/docs/content/">
+    <File Path="docs/content/index.fsx" />
+    <File Path="docs/content/tutorial.fsx" />
+  </Folder>
+  <Folder Name="/docs/files/" />
+  <Folder Name="/docs/files/img/">
+    <File Path="docs/files/img/logo.png" />
+  </Folder>
+  <Folder Name="/docs/tools/">
+    <File Path="docs/tools/generate.fsx" />
+  </Folder>
+  <Folder Name="/docs/tools/templates/">
+    <File Path="docs/tools/templates/template.cshtml" />
+  </Folder>
+  <Folder Name="/project/">
+    <File Path=".gitignore" />
+    <File Path="build.cmd" />
+    <File Path="build.fsx" />
+    <File Path="build.sh" />
+    <File Path="LICENSE.txt" />
+    <File Path="paket.dependencies" />
+    <File Path="README.md" />
+    <File Path="RELEASE_NOTES.md" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FSharp.Control.Reactive.Tests.fsproj" />
+  </Folder>
+  <Project Path="src/FSharp.Control.Reactive.Testing/FSharp.Control.Reactive.Testing.fsproj" />
+  <Project Path="src/FSharp.Control.Reactive/FSharp.Control.Reactive.fsproj" />
+</Solution>

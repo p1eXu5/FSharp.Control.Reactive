@@ -37,11 +37,20 @@ module Schedule =
      ***************************************************************)
 
     /// Schedules an function to be executed.
-    let action f sch = Scheduler.Schedule (sch, Action f)
+    let action f sch =
+        Scheduler.Schedule(sch, Action f)
 
     /// Schedules an function to be executed at a specified absolute time.
-    let actionOffset offset f sch =
-        Scheduler.Schedule (sch, (offset : DateTimeOffset), Action f)
+    let actionOffset (offset: DateTimeOffset) f sch =
+        Scheduler.Schedule(sch, offset, Action f)
+
+    /// Schedules an function to be executed after dueTime.
+    let actionSpan (dueTime: TimeSpan) f sch =
+        Scheduler.Schedule(sch, dueTime, Action f)
+
+    /// Schedules an function to be executed after ticks.
+    let actionSpanTicks (ticks: int64) f sch =
+        Scheduler.Schedule(sch, TimeSpan.FromTicks(ticks), Action f)
 
     /// Schedules an function to be executed.
     let actionLong f sch =
@@ -166,8 +175,8 @@ module Schedule =
     /// The caller should await the result of calling 'sleep' to schedule the remainder of the current work item (known as the continuation) after the specified due time.
     let sleepOffsetCancel dueTime ct sch = Scheduler.Sleep (sch, (dueTime : DateTimeOffset), ct) |> asAsync
 
-    let asTask (ct: CancellationToken) (async: Async<'T>) =
-        let tcs = TaskCompletionSource<'T>()
+    let asTask (ct: CancellationToken) (async: Async<'a>) =
+        let tcs = TaskCompletionSource<'a>()
         Async.StartWithContinuations(
               async,
               tcs.SetResult,

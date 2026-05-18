@@ -39,12 +39,12 @@ type EmitTest () =
     member __.``Applicative Law of Observables`` () =
         Check.QuickThrowOnFailure <| 
             fun ms (f : int -> int) ->
-            TestSchedule.usage <| fun sch ->
-                TestSchedule.hotObservable sch ms
-                |> Observable.retry
-                |> Observable.apply (Observable.single f)
-                |> TestSchedule.subscribeTestObserverStart sch
-                |> TestObserver.nexts = TestNotification.mapNexts f ms
+                TestSchedule.usage <| fun sch ->
+                    TestSchedule.hotObservable sch ms
+                    |> Observable.retry
+                    |> Observable.apply (Observable.single f)
+                    |> TestSchedule.subscribeTestObserverStart sch
+                    |> TestObserver.nexts = TestNotification.mapNexts f ms
 
     [<Test>]
     member __.``Monadic Law of Observables`` () =

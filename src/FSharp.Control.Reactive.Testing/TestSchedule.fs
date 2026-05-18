@@ -1,10 +1,12 @@
 ﻿/// The Reactive module provides operators for working with TestScheduler in F#.
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
-module FSharp.Control.Reactive.Testing.TestSchedule
+module FSharp.Control.Reactive.Testing.TestScheduler
 
 open System
 open FSharp.Control.Reactive
 open Microsoft.Reactive.Testing
+
+let inline create () = TestScheduler()
 
 /// Virtual time scheduler used for testing applications and libraries built using Reactive Extensions.
 let usage f =

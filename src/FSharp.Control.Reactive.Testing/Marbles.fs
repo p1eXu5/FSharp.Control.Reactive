@@ -110,7 +110,7 @@ module Marbles =
     /// ## Parameters
     /// - `x` - Marble text representation. Example: `--a---b--|`.
     /// - `sch` - The given `TestScheduler` to use to create the Cold Observable.
-    let cold x sch = parseMarbles Cold x |> TestSchedule.coldObservable sch
+    let cold x sch = parseMarbles Cold x |> TestScheduler.coldObservable sch
 
     /// Creates from the given marble representation a Hot Observable
     /// using the specified `TestScheduler`.
@@ -118,7 +118,7 @@ module Marbles =
     /// ## Parameters
     /// - `x` - Marble text represetantion. Example: `--^-a---b--|`.
     ///- `sch` - The given `TestScheduler` to use to create the Hot Observable.
-    let hot x sch = parseMarbles Hot x |> TestSchedule.hotObservable sch
+    let hot x sch = parseMarbles Hot x |> TestScheduler.hotObservable sch
 
     /// Creates from the given marble representation a `TestNotifications<'a>` model.
     let messages txt =
@@ -126,7 +126,7 @@ module Marbles =
 
     /// Verifies that the given marble representation is indeed the same as the observed messages found in the given test observer.
     let expectMessages sch txt obs =
-        TestSchedule.subscribeTestObserverStart sch obs
+        TestScheduler.subscribeTestObserverStart sch obs
         |> TestObserver.messages =! (parseMarbles Cold txt)
 
     /// Creates from the given marble representation a `Subscription` model.

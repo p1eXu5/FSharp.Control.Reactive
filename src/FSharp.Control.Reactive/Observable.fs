@@ -147,42 +147,45 @@ module Observable =
     // Subscribe
     // ------------------------
 
-    let inline subscribeNext (observable: #IObservable<'a>) (onNext: 'a -> unit) =
+    /// Subscribes to the Observable with a next fuction.
+    let inline subscribe (onNext: 'a -> unit) (observable: #IObservable<'a>) =
         observable.Subscribe(Action<_> onNext)
-
-    /// Subscribes to the Observable with a next and an error-function.
-    let inline subscribeNextError (observable: #IObservable<'a>) (onNext: 'a -> unit) (onError: exn -> unit) =
-        observable.Subscribe(Action<_> onNext, Action<exn> onError)
-
-    /// Subscribes to the Observable with a next and a completion callback.
-    let inline subscribeNextCompleted (observable: #IObservable<'a>) (onNext: 'a -> unit) (onCompleted: unit -> unit) =
-        observable.Subscribe(Action<_> onNext, Action onCompleted)
 
     /// Subscribes to the Observable with a next fuction.
-    let inline subscribe (onNext: 'a -> unit) (observable: IObservable<'a>) =
-        observable.Subscribe(Action<_> onNext)
-
+    let inline subscribeCt (ct: CancellationToken) (onNext: 'a -> unit) (observable: #IObservable<'a>) =
+        observable.Subscribe(Action<_> onNext, ct)
 
     /// Subscribes to the Observable with a next and an error-function.
-    let inline subscribeWithError  ( onNext     : 'a   -> unit     )
-                            ( onError    : exn  -> unit     )
-                            ( observable : IObservable<'a>  ) =
-        observable.Subscribe( Action<_> onNext, Action<exn> onError )
+    let inline subscribeError (onNext: 'a -> unit) (onError: exn  -> unit) (observable : #IObservable<'a>) =
+        observable.Subscribe(Action<_> onNext, Action<exn> onError)
 
+    /// Subscribes to the Observable with a next and an error-function.
+    let inline subscribeErrorCt (ct: CancellationToken) (onNext: 'a -> unit) (onError: exn  -> unit) (observable : #IObservable<'a>) =
+        observable.Subscribe(Action<_> onNext, Action<exn> onError, ct)
 
     /// Subscribes to the Observable with a next and a completion callback.
-    let inline subscribeWithCompletion (onNext: 'a -> unit) (onCompleted: unit -> unit) (observable: IObservable<'a>) =
-            observable.Subscribe(Action<_> onNext, Action onCompleted)
+    let inline subscribeCompleted (onNext: 'a -> unit) (onCompleted: unit -> unit) (observable: #IObservable<'a>) =
+        observable.Subscribe(Action<_> onNext, Action onCompleted)
 
+    /// Subscribes to the Observable with a next and a completion callback.
+    let inline subscribeCompletedCt (ct: CancellationToken) (onNext: 'a -> unit) (onCompleted: unit -> unit) (observable: #IObservable<'a>) =
+        observable.Subscribe(Action<_> onNext, Action onCompleted, ct)
 
     /// Subscribes to the observable with all three callbacks
-    let inline subscribeWithCallbacks onNext onError onCompleted (observable: IObservable<'a>) =
-        observable.Subscribe(Observer.Create(Action<_> onNext, Action<_> onError, Action onCompleted))
+    let inline subscribeErrorCompleted onNext onError onCompleted (observable: IObservable<'a>) =
+        observable.Subscribe(Action<_> onNext, Action<_> onError, Action onCompleted)
 
+    /// Subscribes to the observable with all three callbacks
+    let inline subscribeErrorCompletedCt (ct: CancellationToken) onNext onError onCompleted (observable: IObservable<'a>) =
+        observable.Subscribe(Action<_> onNext, Action<_> onError, Action onCompleted, ct)
 
     /// Subscribes to the observable with the given observer
-    let inline subscribeObserver observer (observable: IObservable<'a>) =
-        observable.Subscribe observer
+    let inline subscribeObserver (observer: IObserver<'a>) (observable: IObservable<'a>) =
+        observable.Subscribe(observer)
+
+    /// Subscribes to the observable with the given observer
+    let inline subscribeObserverCt (ct: CancellationToken) (observer: IObserver<'a>) (observable: IObservable<'a>) =
+        observable.Subscribe(observer, ct)
 
 
     /// Wraps the source sequence in order to run its subscription and unsubscription logic
@@ -190,20 +193,20 @@ module Observable =
     /// the side-effects of subscription and unsubscription on the specified scheduler.
     ///  In order to invoke observer callbacks on a scheduler, use 'observeOn'
     let inline subscribeOn (scheduler:Reactive.Concurrency.IScheduler) (source:IObservable<'Source>) : IObservable<'Source> =
-        Observable.SubscribeOn( source, scheduler )
+        Observable.SubscribeOn(source, scheduler)
 
     /// Wraps the source sequence in order to run its subscription and unsubscription logic
     /// on the specified SynchronizationContext. This operation is not commonly used;  This only performs
     /// the side-effects of subscription and unsubscription on the specified scheduler.
     ///  In order to invoke observer callbacks on a scheduler, use 'observeOn'
     let inline subscribeOnContext (context:Threading.SynchronizationContext) (source:IObservable<'Source>) : IObservable<'Source> =
-        Observable.SubscribeOn( source, context )
+        Observable.SubscribeOn(source, context)
 
 
     /// Subscribes to the specified source, re-routing synchronous exceptions during invocation of the
     /// Subscribe function to the observer's 'OnError channel. This function is typically used to write query operators.
     let inline subscribeSafe onNext (source : IObservable<_>) =
-        source.SubscribeSafe (Observer.Create (Action<_> onNext, Action<_> ignore, Action ignore))
+        source.SubscribeSafe(Observer.Create (Action<_> onNext, Action<_> ignore, Action ignore))
 
 
     /// Subscribes to the specified source, re-routing synchronous exceptions during invocation of the

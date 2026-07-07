@@ -1,0 +1,84 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+        <Version>7.0.0-preview</Version>
+        <AssemblyVersion>7.0.0.0</AssemblyVersion>
+        <FileVersion>7.0.0.0</FileVersion>
+        <InformationalVersion>7.0.0-preview</InformationalVersion>
+
+        <Authors>Ryan Riley;Steffen Forkmann;Jared Hester;Vladimir Likhatskiy (p1eXu5)</Authors>
+        <Summary>A F#-friendly wrapper for the Reactive Extensions.</Summary>
+        <Description>A F#-friendly wrapper for the Reactive Extensions.</Description>
+
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+
+        <NeutralLanguage>en-US</NeutralLanguage>
+        <RepositoryUrl>https://github.com/p1eXu5/p1eXu5.FSharp.Reactive</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageProjectUrl>https://github.com/p1eXu5/p1eXu5.FSharp.Reactive</PackageProjectUrl>
+        <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+        <PackageTags>F#;FSharp;Reactive Extensions;Rx;fsharp;f#;helpers;system.reactive;rx;reactive;bindings;net10;</PackageTags>
+
+        <DebugType>portable</DebugType>
+        <DebugSymbols>true</DebugSymbols>
+
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+        <Deterministic>true</Deterministic>
+        <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Pack the README from repo root into the nuget package -->
+        <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+        <None Include="..\..\LICENSE.txt" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="System.Reactive" Version="7.0.0-rc.1" />
+        
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.300">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+    
+    <Target Name="ConfigureTrimming" BeforeTargets="PrepareForILLink">
+        <ItemGroup>
+            <ManagedAssemblyToLink Condition="'%(Filename)' == 'FSharp.Control.Reactive'">
+                <TrimMode>link</TrimMode>
+                <IsTrimmable>true</IsTrimmable>
+            </ManagedAssemblyToLink>
+        </ItemGroup>
+    </Target>
+    
+    <ItemGroup>
+        <Compile Include="Disposable.fs" />
+        <Compile Include="Scheduler.fs" />
+        <Compile Include="Subject.fs" />
+        <Compile Include="Observer.fs" />
+        <Compile Include="Dsl.fs" />
+        <Compile Include="Observable.fs" />
+        <Compile Include="Observable.Generators.fs" />
+        <Compile Include="Observable.Filters.fs" />
+        <Compile Include="Observable.Transformation.fs" />
+        <Compile Include="Observable.Aggregation.fs" />
+        <Compile Include="Observable.Partitioning.fs" />
+        <Compile Include="Observable.Combinators.fs" />
+        <Compile Include="Observable.TimeBased.fs" />
+        <Compile Include="Observable.ErrorHandling.fs" />
+        <Compile Include="Observable.Publishing.fs" />
+        <Compile Include="Observable.Extra.fs" />
+    </ItemGroup>
+    
+    <ItemGroup>
+      <PackageReference Update="FSharp.Core" Version="10.1.301" />
+    </ItemGroup>
+    
+</Project>

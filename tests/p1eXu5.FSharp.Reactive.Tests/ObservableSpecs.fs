@@ -1,0 +1,895 @@
+﻿module p1eXu5.FSharp.Reactive.Tests.ObservableSpecs
+
+open System
+open System.Reactive.Concurrency
+open System.Reactive.Disposables
+open System.Reactive.Linq
+
+open Microsoft.Reactive.Testing
+open NUnit.Framework
+open NUnit.Framework.Legacy
+open FsCheck
+open FsCheck.FSharp
+
+open p1eXu5.FSharp.Reactive
+open p1eXu5.FSharp.Reactive.Dsl
+open p1eXu5.FSharp.Reactive.Testing
+open p1eXu5.FSharp.Reactive.Testing.TestNotification
+open System.Reactive.Subjects
+
+
+let ``should be`` (expectedNext: int) (expectedError: bool) (expectedCompleted: bool) (observable:'a IObservable) =
+    let next = ref 0
+    let error = ref false
+    let completed = ref false
+
+    let subscription = observable |> Observable.subscribeWithCallbacks (fun _ -> incr next) (fun _ -> error := true) (fun () -> completed := true)
+
+    Assert.That(!next, Is.EqualTo<int>(expectedNext))
+    Assert.That(!error, Is.EqualTo expectedError)
+    Assert.That(!completed, Is.EqualTo expectedCompleted)
+
+let tuple x y = x,y
+
+[<Test>]
+let ``When subscribing to a single value observable, OnNext and OnCompleted should be fired``() =
+    Observable.Return(1) |> ``should be`` 1 false true
+
+[<Test>]
+let ``When subscribing to an empty observable, only OnCompleted should be fired``() =
+    Observable.Empty() |> ``should be`` 0 false true
+
+[<Test>]
+let ``All OnNext notifications are ignored``() =
+    Observable.range 1 10 |> Observable.ignoreElements |> ``should be`` 0 false true
+
+[<Test>]
+let ``When subscribing to an observable that fires an exception, only OnError should be fired``() =
+    Observable.Throw(Exception()) |> ``should be`` 0 true false
+
+[<Test>]
+let ``When subscribing to an F# event, only OnNext should be called``() =
+    let next = ref 0
+    let error = ref false
+    let completed = ref false
+    let testEvent = Event<EventHandler, EventArgs>()
+
+    let subscription = testEvent.Publish.Subscribe((fun _ -> incr next), (fun _ -> error := true), (fun () -> completed := true))
+    testEvent.Trigger(null, EventArgs())
+
+    Assert.That(!next, Is.EqualTo 1)
+    Assert.That(!error, Is.False)
+    Assert.That(!completed, Is.False)
+
+type TestType() =
+    let testEvent = Event<EventHandler, EventArgs>()
+    [<CLIEvent>] member this.TestEvent = testEvent.Publish
+    member this.Trigger() = testEvent.Trigger(this, EventArgs())
+
+[<Test>]
+let ``When subscribing to an event, only OnNext should be fired once.``() =
+    let next = ref 0
+    let error = ref false
+    let completed = ref false
+
+    let tester = TestType()
+//    let subscription = tester.TestEvent.Subscribe((fun _ -> incr next), (fun _ -> error := true), (fun () -> completed := true))
+    let observable = Observable.fromEventPattern "TestEvent" tester
+    let subscription = observable.Subscribe((fun _ -> incr next), (fun _ -> error := true), (fun () -> completed := true))
+    tester.Trigger()
+
+    Assert.That(!next, Is.EqualTo 1)
+    Assert.That(!error, Is.False)
+    Assert.That(!completed, Is.False)
+
+[<Test>]
+let ``When subscribing to an observable that fires an exception using the ObservableBuilder, only OnError should be fired``() =
+    let builder = observe {
+        failwith "Test"
+        yield 1 }
+    builder |> ``should be`` 0 true false
+
+[<Test>]
+let ``ObservableBuilder can run-time test, and try-catch the type of exception``() =
+    
+    let errorObservable =
+        observe {
+            try
+                InvalidOperationException() |> raise
+            with
+            | :? InvalidOperationException ->
+                yield 1
+    }
+
+    errorObservable |> ``should be`` 1 false true
+
+[<Test>]
+let ``When zip is defined with the applicative, it should match the result of Observable.zip``() =
+    let inline (<*>) f m = Observable.apply f m
+    let inline (<!>) f m = Observable.map f m
+    let a = Observable.Return 1
+    let b = Observable.Return 2
+    let zip a b = tuple <!> a <*> b
+
+    let actual = ref (0,0)
+    let expected = ref (0,0)
+
+    (zip a b).Subscribe(fun x -> actual := x) |> ignore
+    (Observable.zip a b).Subscribe(fun x -> expected := x) |> ignore
+
+    Assert.That(!actual, Is.EqualTo (!expected))
+
+[<Test>]
+let ``zip used in rxquery matches output from Observable.zip`` () =
+    let a = Observable.ofSeq [1;2;3]
+    let b = Observable.ofSeq [1;2;3]
+
+    let expected = ResizeArray()
+    (Observable.zip a b).Subscribe(expected.Add) |> ignore
+
+    let actual = ResizeArray()
+    (rxquery {
+        for x in a do
+        zip y in b
+        yield x, y
+     }).Subscribe(actual.Add) |> ignore
+
+    Assert.That(List.ofSeq actual = List.ofSeq expected)
+
+[<Test>]
+let ``Test should show the stack overflow is fixed with Rx 2 beta``() =
+    let test() =
+        let rec g x = observe {
+            yield x
+            if x < 100000 then
+                yield! g (x + 1) }
+        g 5 |> Observable.subscribeWithCallbacks ignore ignore ignore |> ignore
+    Assert.DoesNotThrow(TestDelegate(fun () -> test()))
+
+[<Test>]
+let ``RxQueryBuilder.Head can return first item`` () =
+    let test = observe {
+        yield 1
+        yield 2
+        yield 3
+        yield 4 }
+
+    let query = rxquery {
+        for x in test do
+        head }
+
+    query |> Observable.subscribe (fun x -> ClassicAssert.AreEqual(1, x)) |> ignore
+
+[<Test>]
+let ``RxQueryBuilder.ExactlyOne can returns only one item`` () =
+    let test = observe { yield 1 }
+
+    let query = rxquery {
+        for x in test do
+        exactlyOne }
+
+    query |> Observable.subscribe (fun x -> ClassicAssert.AreEqual(1, x)) |> ignore
+
+[<Test>]
+let ``groupBy in Rx builder matches GroupBy method`` () =
+    let nat = Observable.range 0 10
+    let query = rxquery {
+        for i in nat do
+        groupBy (i % 3) into grp
+        yield grp.Key        
+    }
+
+    ClassicAssert.IsTrue([0; 1; 2;] |> Observable.equalsSeq query |> Observable.wait)
+
+[<Test>]
+let ``groupByJoin in Rx builder matches GroupByJoin method`` () =
+    
+    let left = 
+        [
+        "2020-01-01 02:00:00", "Batch1" 
+        "2020-01-01 03:00:00", "Batch2" 
+        "2020-01-01 04:00:00", "Batch3" 
+        ] |> Observable.ofSeq
+    
+    let right = 
+        [
+        "2020-01-01 01:00:00", "Production=2" 
+        "2020-01-01 02:00:00", "Production=0" 
+        "2020-01-01 03:00:00", "Production=3" 
+        ] |> Observable.ofSeq
+    
+
+    let never = Observable.neverWitness 0
+
+    let query = rxquery {
+        for l in left do
+        groupJoin right never never (fun r' -> r', l) into (grouped, l)
+        for (rtime, rvalue) in grouped do
+        let (ltime, lvalue) = l 
+        where (ltime = rtime)
+        yield lvalue, rvalue
+    }
+
+    let expected = ["Batch1", "Production=0"; "Batch2", "Production=3"]
+    let actual = query |> Observable.take expected.Length 
+    ClassicAssert.IsTrue(expected |> Observable.equalsSeq actual |> Observable.wait)
+
+[<Test>]
+let ``RxQueryBuilder.ExactlyOne throws when source contains more than one item`` () =
+    let test = observe {
+        yield 1
+        yield 2 }
+
+    let query = rxquery {
+        for x in test do
+        exactlyOne }
+
+    Observable.subscribeWithError
+        (fun _ -> Assert.Fail("ExactlyOne should throw when source contains more than one element"))
+        (fun _ -> Assert.Pass())
+        query |> ignore
+
+[<Test>]
+let ``Zipping two observable sequences of different types creates a single zipped observable``() =
+    let obs1 = Observable.Return 1
+    let obs2 = Observable.Return "A"
+    let zipped = Observable.zip obs1 obs2
+    let result = zipped |> Observable.Wait
+    let expected = ( 1, "A" )
+
+    Assert.That(result, Is.EqualTo expected)
+
+[<Test>]
+let ``ZipWith on two observable sequences of different types creates a single zipped observable``() =
+    let obs1 = Observable.Return 1
+    let obs2 = Observable.Return "A"
+    let zipped = Observable.zipWith tuple obs1 obs2
+    let result = zipped |> Observable.Wait
+    let expected = ( 1, "A" )
+
+    Assert.That(result, Is.EqualTo expected)
+
+
+[<Test>]
+let ``distinctKey uses the key function to decide whether an element has been seen before``() =
+    let result   = ResizeArray()
+    let obs      = Observable.ofSeq [ (1,3); (2,5); (2,7); (1,6); (3,5) ]
+    let expected = [ (1,3); (2,5); (3,5) ]
+    obs |> Observable.distinctKey fst
+        |> Observable.subscribe(result.Add) 
+        |> ignore
+
+    Assert.That(result, Is.EqualTo<int * int>(expected))
+
+[<Test>]
+let ``distinctKeyCompare uses the key function and the comparer to decide whether an element has been seen before``() =
+    let comparer = { new System.Collections.Generic.IEqualityComparer<int> with
+                        member x.Equals(a,b)    = a % 2 = b % 2
+                        member x.GetHashCode(a) = a % 2 } // Equivalence based on odd or even
+    let result   = ResizeArray()
+    let obs      = Observable.ofSeq [ (1,3); (2,5); (2,7); (1,6); (3,5) ]
+    let expected = [ (1,3); (2,5) ]
+    obs |> Observable.distinctKeyCompare fst comparer
+        |> Observable.subscribe(result.Add) 
+        |> ignore
+
+    Assert.That(result, Is.EqualTo<int * int>(expected))
+
+[<Test>]
+let ``distinctUntilChangedKey uses the key function to decide whether an element has been seen before``() =
+    let result   = ResizeArray()
+    let obs      = Observable.ofSeq [ (1,3); (2,5); (2,7); (1,6); (3,5) ]
+    let expected = [ (1,3); (2,5); (1,6); (3,5) ]
+    obs |> Observable.distinctUntilChangedKey fst
+        |> Observable.subscribe(result.Add) 
+        |> ignore
+
+    Assert.That(result, Is.EqualTo<int * int>(expected))
+
+[<Test>]
+let ``distinctUntilChangedKeyCompare uses the key function and the comparer to decide whether an element has been seen before``() =
+    let comparer = { new System.Collections.Generic.IEqualityComparer<int> with
+                        member x.Equals(a,b)    = a % 2 = b % 2
+                        member x.GetHashCode(a) = a % 2 }  // Equivalence based on odd or even
+    let result   = ResizeArray()
+    let obs      = Observable.ofSeq [ (1,3); (2,5); (2,7); (1,6); (3,5) ]
+    let expected = [ (1,3); (2,5); (1,6) ]
+    obs |> Observable.distinctUntilChangedKeyCompare fst comparer
+        |> Observable.subscribe(result.Add) 
+        |> ignore
+
+    Assert.That(result, Is.EqualTo<int * int>(expected))
+
+[<Test>]
+let ``ofSeqOn enumerates its sequence on the specified scheduler``() =
+    let result    = ResizeArray()
+    let items     = [ 1; 2; 3]
+    let scheduler = TestScheduler()
+
+    let obs       = items |> Observable.ofSeqOn scheduler
+    obs |> Observable.subscribe(result.Add) 
+        |> ignore
+
+    Assert.That(result, Is.Empty)
+    scheduler.Start()
+    Assert.That(result, Is.EqualTo<int> items)
+
+[<Test>]
+let ``intervalOn produces a value at the specified rate on the supplied scheduler``() =
+    let result    = ResizeArray()
+    let scheduler = TestScheduler()
+    let oneSecond = TimeSpan.FromSeconds(1.).Ticks
+
+    let obs = Observable.intervalOn scheduler (TimeSpan.FromSeconds(2.))
+    obs |> Observable.subscribe(result.Add) 
+        |> ignore
+
+    Assert.That(result, Is.Empty)
+    scheduler.AdvanceBy oneSecond; Assert.That(result, Is.Empty)
+    scheduler.AdvanceBy oneSecond; Assert.That(result, Has.Count.EqualTo 1)
+    scheduler.AdvanceBy oneSecond; Assert.That(result, Has.Count.EqualTo 1)
+    scheduler.AdvanceBy oneSecond; Assert.That(result, Has.Count.EqualTo 2)
+
+[<Test>]
+let ``throttleOn produces a value at the specified rate on the supplied scheduler``() =
+    let result    = ResizeArray()
+    use obs       = new Subject<int>()
+    let scheduler = TestScheduler()
+    let oneSecond = TimeSpan.FromSeconds(1.).Ticks
+
+    obs |> Observable.throttleOn scheduler (TimeSpan.FromSeconds(2.))
+        |> Observable.subscribe(result.Add) 
+        |> ignore
+
+    obs.OnNext(1);                 Assert.That(result, Is.Empty)
+    scheduler.AdvanceBy oneSecond; Assert.That(result, Is.Empty)
+    scheduler.AdvanceBy oneSecond
+    Assert.That(result, Is.EqualTo<int> [1] )
+
+    obs.OnNext(2)
+    scheduler.AdvanceBy oneSecond; Assert.That(result, Is.EqualTo<int> [1] )
+    obs.OnNext(3)
+    scheduler.AdvanceBy oneSecond; Assert.That(result, Is.EqualTo<int> [1] )
+    scheduler.AdvanceBy oneSecond; Assert.That(result, Is.EqualTo<int> [1; 3] )
+
+[<Test>]
+let ``combineLatest calls map function with pairs of latest values``() =
+    let result   = ResizeArray()
+    use obs1     = new Subject<int>()
+    use obs2     = new Subject<int>()
+    let map (x, y)  = x + (y / 2)
+    Observable.combineLatest obs1 obs2
+        |> Observable.map map
+        |> Observable.subscribe(result.Add) 
+        |> ignore
+
+    Assert.That(result, Is.Empty)
+    obs1.OnNext 1
+    Assert.That(result, Is.Empty)
+    obs1.OnNext 2
+    Assert.That(result, Is.Empty)
+    obs2.OnNext 10
+    Assert.That(result, Is.EqualTo<int> [ 7 ] )
+    obs2.OnNext 20                
+    Assert.That(result, Is.EqualTo<int> [ 7; 12 ] )
+    obs1.OnNext 3                 
+    Assert.That(result, Is.EqualTo<int> [ 7; 12; 13 ] )
+
+[<Test>]
+let ``combineLatestArray produces arrays of latest values``() =
+    let result   = ResizeArray()
+    use obs1     = new Subject<int>()
+    use obs2     = new Subject<int>()
+    Observable.combineLatestArray [| obs1; obs2 |]
+        |> Observable.subscribe(result.Add) 
+        |> ignore
+
+    Assert.That(result, Is.Empty)
+    obs1.OnNext 1
+    Assert.That(result, Is.Empty)
+    obs1.OnNext 2
+    Assert.That(result, Is.Empty)
+    obs2.OnNext 10
+    Assert.That(result, Is.EqualTo<int[]> [ [| 2; 10 |] ] )
+    obs2.OnNext 20                
+    Assert.That(result, Is.EqualTo<int[]> [ [| 2; 10 |]; [| 2; 20 |] ] )
+    obs1.OnNext 3                 
+    Assert.That(result, Is.EqualTo<int[]> [ [| 2; 10 |]; [| 2; 20 |]; [| 3; 20 |] ] )
+
+[<Test>]
+let ``combineLatestSeq produces lists of latest values``() =
+    let result   = ResizeArray()
+    use obs1     = new Subject<int>()
+    use obs2     = new Subject<int>()
+    let sources  = [ obs1 :> IObservable<_>; obs2 :> IObservable<_>] |> Seq.ofList
+    Observable.combineLatestSeq sources
+        |> Observable.subscribe(result.Add) 
+        |> ignore
+
+    Assert.That(result, Is.Empty)
+    obs1.OnNext 1
+    Assert.That(result, Is.Empty)
+    obs1.OnNext 2
+    Assert.That(result, Is.Empty)
+    obs2.OnNext 10
+    Assert.That(result, Is.EqualTo<int list> [ [2; 10] ] )
+    obs2.OnNext 20                
+    Assert.That(result, Is.EqualTo<int list> [ [2; 10]; [2; 20] ] )
+    obs1.OnNext 3                 
+    Assert.That(result, Is.EqualTo<int list> [ [2; 10]; [2; 20]; [3; 20] ] )
+
+[<Test>]
+let ``combineLatestSeqMap applies map function to latest values``() =
+    let result   = ResizeArray()
+    use obs1     = new Subject<int>()
+    use obs2     = new Subject<int>()
+    let sources  = [ obs1 :> IObservable<_>; obs2 :> IObservable<_>] |> Seq.ofList
+    let map xs   = xs |> Seq.sum
+    Observable.combineLatestSeqMap map sources
+        |> Observable.subscribe(result.Add) 
+        |> ignore
+
+    Assert.That(result, Is.Empty)
+    obs1.OnNext 1
+    Assert.That(result, Is.Empty)
+    obs1.OnNext 2
+    Assert.That(result, Is.Empty)
+    obs2.OnNext 10
+    Assert.That(result, Is.EqualTo<int> [ 12 ] )
+    obs2.OnNext 20                
+    Assert.That(result, Is.EqualTo<int> [ 12; 22 ] )
+    obs1.OnNext 3                 
+    Assert.That(result, Is.EqualTo<int> [ 12; 22; 23 ] )
+
+[<Test>]
+let ``replay replays all notifications upon subscription``() =
+    let result   = ResizeArray()
+    use subject  = new Subject<int>()
+    
+    let obs = subject |> Observable.replay
+    obs |> Observable.connect 
+        |> ignore
+    
+    subject.OnNext 1
+    subject.OnNext 2
+    subject.OnNext 3
+    
+    obs |> Observable.subscribe(result.Add) 
+        |> ignore
+
+    Assert.That(result, Is.EqualTo<int> [ 1; 2; 3 ] )
+    subject.OnNext 4
+    Assert.That(result, Is.EqualTo<int> [ 1; 2; 3; 4 ] )
+
+
+[<Test>]
+let ``replayBuffer replays only the required count of notifications upon subscription``() =
+    let result   = ResizeArray()
+    use subject  = new Subject<int>()
+    
+    let obs = subject |> Observable.replayBuffer 2
+    obs |> Observable.connect 
+        |> ignore
+    
+    subject.OnNext 1
+    subject.OnNext 2
+    subject.OnNext 3
+    
+    obs |> Observable.subscribe(result.Add) 
+        |> ignore
+
+    Assert.That(result, Is.EqualTo<int> [ 2; 3 ] )
+    subject.OnNext 4
+    Assert.That(result, Is.EqualTo<int> [ 2; 3; 4 ] )
+
+
+[<Test>]
+let ``replayBufferOn replays only the required count of notifications upon subscription``() =
+    let oneSecond = TimeSpan.FromSeconds(1.).Ticks
+    let result   = ResizeArray()
+    use subject  = new Subject<int>()
+    let scheduler = TestScheduler()
+    
+    let obs = subject |> Observable.replayBufferOn scheduler 2
+    obs |> Observable.connect 
+        |> ignore
+    
+    scheduler.AdvanceBy(oneSecond); subject.OnNext 1
+    scheduler.AdvanceBy(oneSecond); subject.OnNext 2
+    scheduler.AdvanceBy(oneSecond); subject.OnNext 3
+    scheduler.AdvanceBy(oneSecond);
+
+    obs |> Observable.subscribe(result.Add) 
+        |> ignore
+
+    scheduler.Start()
+    Assert.That(result, Is.EqualTo<int> [ 2; 3 ] )
+    scheduler.AdvanceBy(oneSecond); subject.OnNext 4
+    scheduler.AdvanceBy(oneSecond);
+    printf "9: %A\n" (result |> List.ofSeq)
+    Assert.That(result, Is.EqualTo<int> [ 2; 3; 4 ] )
+    printf "10: %A\n" (result |> List.ofSeq)
+
+[<Test>]
+let ``replayWindowOn replays only the required time range of notifications upon subscription``() =
+    let oneSecond = TimeSpan.FromSeconds(1.).Ticks
+    let result    = ResizeArray()
+    use subject  = new Subject<int>()
+    let scheduler = TestScheduler()
+
+    let obs = subject |> Observable.replayWindowOn scheduler (TimeSpan.FromSeconds(3.))
+    obs |> Observable.connect 
+        |> ignore
+
+    scheduler.AdvanceBy(oneSecond); subject.OnNext 1
+    scheduler.AdvanceBy(oneSecond); subject.OnNext 2
+    scheduler.AdvanceBy(oneSecond); subject.OnNext 3
+    scheduler.AdvanceBy(oneSecond); subject.OnNext 4
+    scheduler.AdvanceBy(oneSecond)
+
+    obs |> Observable.subscribe(result.Add) 
+        |> ignore
+
+    scheduler.Start()
+    Assert.That(result, Is.EqualTo<int> [ 2; 3; 4 ] )
+
+[<Test>]
+let ``replayBufferWindowOn replays only the required time range of notifications upon subscription``() =
+    let oneSecond = TimeSpan.FromSeconds(1.).Ticks
+    let result    = ResizeArray()
+    use subject  = new Subject<int>()
+    let scheduler = TestScheduler()
+
+    let obs = subject |> Observable.replayBufferWindowOn scheduler 4 (TimeSpan.FromSeconds(3.))
+    obs |> Observable.connect 
+        |> ignore
+
+    scheduler.AdvanceBy(oneSecond); subject.OnNext 1
+    scheduler.AdvanceBy(oneSecond); subject.OnNext 2
+    scheduler.AdvanceBy(oneSecond); subject.OnNext 3
+    scheduler.AdvanceBy(oneSecond); subject.OnNext 4
+    scheduler.AdvanceBy(oneSecond)
+
+    obs |> Observable.subscribe(result.Add) 
+        |> ignore
+
+    scheduler.Start()
+    Assert.That(result, Is.EqualTo<int> [ 2; 3; 4 ] )
+
+[<Test>]
+let ``replayBufferWindowOn replays only the required count of notifications upon subscription``() =
+    let oneSecond = TimeSpan.FromSeconds(1.).Ticks
+    let result    = ResizeArray()
+    use subject  = new Subject<int>()
+    let scheduler = TestScheduler()
+
+    let obs = subject |> Observable.replayBufferWindowOn scheduler 2 (TimeSpan.FromSeconds(3.))
+    obs |> Observable.connect 
+        |> ignore
+
+    scheduler.AdvanceBy(oneSecond); subject.OnNext 1
+    scheduler.AdvanceBy(oneSecond); subject.OnNext 2
+    scheduler.AdvanceBy(oneSecond); subject.OnNext 3
+    scheduler.AdvanceBy(oneSecond); subject.OnNext 4
+    scheduler.AdvanceBy(oneSecond)
+
+    obs |> Observable.subscribe(result.Add) 
+        |> ignore
+
+    scheduler.Start()
+    Assert.That(result, Is.EqualTo<int> [ 3; 4 ] )
+
+[<Test>]
+let ``timestampOn uses timestamps from the supplied scheduler``() =
+    let oneSecond = TimeSpan.FromSeconds(1.).Ticks
+    let result    = ResizeArray()
+    use subject   = new Subject<int>()
+    let scheduler = TestScheduler()
+
+    let obs = subject |> Observable.materialize
+                      |> Observable.timestampOn scheduler
+                      |> Observable.subscribe(result.Add)
+                      |> ignore
+
+    scheduler.AdvanceBy(oneSecond)
+    let firstNotificationAt = scheduler.Now
+    subject.OnNext 1
+    
+    scheduler.AdvanceBy(oneSecond)
+    let secondNotificationAt = scheduler.Now
+    subject.OnNext 2
+
+    Assert.That(result, Has.Count.EqualTo 2)
+    Assert.That(result.[0].Timestamp, Is.EqualTo firstNotificationAt)
+    Assert.That(result.[1].Timestamp, Is.EqualTo secondNotificationAt)
+
+[<Test>]
+let ``Observable.Create should support a simple observable returning fun () -> ()``() =
+    let obs =
+        (fun (o:IObserver<_>) ->
+            o.OnNext("xxx")
+            o.OnCompleted()
+            Action(fun () -> ())
+        )
+        |> Observable.Create
+
+    use x = obs.Subscribe(fun result -> Assert.That(result, Is.EqualTo "xxx"))
+    ()
+
+[<Test>]
+let ``Observable.Create should support a simple observable returning ignore``() =
+    let obs =
+        Observable.Create(fun (o : IObserver<_>) ->
+            o.OnNext("xxx")
+            o.OnCompleted()
+            Action(ignore))
+
+    use x = obs.Subscribe(fun result -> Assert.That(result, Is.EqualTo "xxx"))
+    ()
+
+[<Test>]
+let ``Observable.Create should support a simple observable returning Disposable.Empty``() =
+    let obs =
+        fun (o:IObserver<_>) ->
+            o.OnNext("xxx")
+            o.OnCompleted()
+            Disposable.Empty
+        |> Observable.Create
+
+    use x = obs.Subscribe(fun result -> Assert.That(result, Is.EqualTo "xxx"))
+    ()
+
+[<Test>]
+let ``Observable.subscribeOn should run subscription on another thread`` () =
+    let expected  = "Hello World"
+    let scheduler = new TestScheduler()
+    let result    = ResizeArray()
+    let oneSecond = TimeSpan.FromSeconds(1.).Ticks
+    let obs =
+        Observable.Create(fun (o : IObserver<_>) ->
+            scheduler.Schedule(Action(fun () -> o.OnNext(expected)))
+            )
+    use x = obs
+            |> Observable.subscribeOn(scheduler)
+            |> Observable.subscribe(result.Add)
+    ClassicAssert.IsTrue(result |> Seq.isEmpty)
+
+    scheduler.AdvanceBy(oneSecond)
+    Assert.That(result.[0], Is.EqualTo expected)
+    ()
+    
+[<Test>]
+let ``FlatMapAsync should take F# async workflows and flatmap them to observables``() =
+    let expected = "<head>fake header</head>"
+    let fakeHttpRequest _ =
+        async {  return expected }
+    let result    = ResizeArray()
+    let subject = new Subject<string>()
+
+    use mapper = subject 
+                    |> Observable.flatmapAsync fakeHttpRequest
+                    |> Observable.subscribe result.Add
+
+    Assert.That(result.Count, Is.EqualTo 0)
+
+    subject.OnNext("www.google.com")
+    subject.OnNext("www.microsoft.com")
+    subject.OnNext("www.apple.com")
+    
+    System.Threading.Thread.Sleep 100
+    // HACK: Yes this is using a Thread.Sleep. This is a problem in the current version of Rx 
+    // interoping with other concurrency models. James World has a great Stackoverflow post
+    // on the problems with this : http://stackoverflow.com/a/28236216
+    // Dave Sexton has made a pull request to try to resolve these issues: 
+    // https://github.com/Reactive-Extensions/Rx.NET/pull/65
+    //
+    // It looks like this will be in the next version of Rx to allow use of TestScheduler
+    // but for now we live with this hack
+
+    Assert.That(result.Count, Is.EqualTo 3)
+    Assert.That(result.[0], Is.EqualTo expected)
+    Assert.That(result.[1], Is.EqualTo expected)
+    Assert.That(result.[2], Is.EqualTo expected)
+
+[<Test>]
+let ``Observable.mapi should be equivalent to Array.mapi`` ()=
+    Check.QuickThrowOnFailure <| 
+    fun (items : int array) ->
+        items
+        |> Observable.ofSeq
+        |> Observable.mapi (fun i x -> (i, x))
+        |> Observable.toEnumerable
+        |> Seq.toArray
+        |> (=) (items |> Array.mapi (fun i x -> (i, x)))
+
+[<Test>]
+let ``Observable.mapTo always maps to constant`` () =
+    Check.QuickThrowOnFailure <|
+    fun (xs : int array) (y : int) ->
+        Observable.ofSeq xs
+        |> Observable.mapTo y
+        |> Observable.toEnumerable
+        |> Seq.toList
+        |> (=) (List.replicate xs.Length y)
+
+[<Test>]
+let ``filteri should be equivalent to mapi then filter`` () =
+    Check.QuickThrowOnFailure <|
+    fun (items : int array) ->    
+        let predicate i x = (i % 2 = 0) && (x > 0)
+
+        let filtered =
+            items
+            |> Observable.ofSeq
+            |> Observable.mapi (fun i x -> (i, x))
+            |> Observable.filter (fun (i, x) -> predicate i x)
+            |> Observable.map snd
+            |> Observable.toEnumerable
+            |> Seq.toArray
+
+        let filtered' =
+            Observable.ofSeq items
+            |> Observable.filteri predicate
+            |> Observable.toEnumerable
+            |> Seq.toArray
+
+        filtered = filtered'
+
+[<Test>]
+let ``serve subscribes to all created observables`` () =
+    TestScheduler.usage <| fun sch ->
+        Observable.serve 1 (fun () -> Observable.range 0 10)
+        |> Observable.takeUntilOther (Observable.timerSpan (TimeSpan.FromMilliseconds 100.))
+        |> TestScheduler.subscribeTestObserver sch
+        |> TestObserver.nexts
+        |> fun xs -> ClassicAssert.Greater (xs.Length, 10)
+
+[<TestFixture>]
+type ObservableTests_WithTestNotifications () =
+    
+    let ``concat nexts with first error`` (TestNotifications ms) =
+        let nexts = List.takeWhile isNext ms
+        let fstError = List.tryFind isError ms |> Option.toList
+        nexts @ fstError
+
+    static member Exceptions = Gen.constant (exn "Test Exception") |> Arb.fromGen
+
+    [<SetUp>]
+    member __.Setup () =
+        ArbMap.mergeWith<GenTestNotification> ArbMap.defaults |> ignore
+        ArbMap.mergeWith<ObservableTests_WithTestNotifications> ArbMap.defaults |> ignore
+
+    [<Test>]
+    member __. ``choose should only pick 'Some' emits`` () =
+        let config =
+            Config.QuickThrowOnFailure.WithArbitrary [ typeof<GenTestNotification>; typeof<ObservableTests_WithTestNotifications> ]
+
+        Check.One(config, 
+            fun (f : int -> int option) ms -> 
+                TestScheduler.usage <| fun sch ->
+                    TestScheduler.hotObservable sch ms
+                    |> Observable.retry
+                    |> Observable.choose f
+                    |> TestScheduler.subscribeTestObserverStart sch
+                    |> TestObserver.nexts
+                    |> (=) (TestNotification.nexts ms |> List.choose f)
+        )
+
+    [<Test>]
+    member __. ``throwing an exception inside choose routes it to an OnError and does not lead to the exception flowing out`` () =
+        let o = Observable.ofSeq [1;2;3] |> Observable.choose (fun _ -> failwith "qwe")
+        let error_flows_out = ref false
+        try o |> Observable.subscribeWithError (printfn "%i") (printfn "%A") |> ignore
+        with _ -> error_flows_out := true
+        Assert.That(!error_flows_out, Is.EqualTo false)
+        o |> ``should be`` 0 true false
+
+    [<Test>]
+    member __.``switchMap maps to new observable`` () =
+        Check.QuickThrowOnFailure <|
+        fun (xs : int list) (ys : int list) ->
+            TestScheduler.usage <| fun sch ->
+                Observable.ofSeq xs
+                |> Observable.switchMap (fun _ -> Observable.ofSeq ys)
+                |> TestScheduler.subscribeTestObserverStart sch
+                |> TestObserver.nexts
+                |> fun zs -> 
+                    let emptyWhenAnyEmpty = (xs = [] || ys = []) = (zs = [])
+                    let collectWhenGreater = (List.collect (fun _ -> ys) xs) = zs
+                    emptyWhenAnyEmpty .|. collectWhenGreater
+                    |> Prop.collect (printfn "Source: %A, Inner: %A, Result: %A" xs ys zs)
+    
+    [<Test>]
+    member __.``exhaustMap maps all incoming source emits`` () =
+        let config =
+            Config.QuickThrowOnFailure.WithArbitrary [ typeof<GenTestNotification>; typeof<ObservableTests_WithTestNotifications> ]
+
+        Check.One(config,
+            fun (xs : int list) (f : int -> int) ->
+                TestScheduler.usage <| fun sch ->
+                    let inner  = xs |> List.map f
+                    let got = 
+                        Observable.ofSeq xs
+                        |> Observable.exhaustMap (fun _ -> Observable.ofSeq inner)
+                        |> TestScheduler.subscribeTestObserverStart sch
+                        |> TestObserver.nexts 
+                    let expected = inner
+            
+                    expected = got
+        )
+
+    [<Test>]
+    member __.``exhaustMap with interval`` () =
+        let source = Observable.interval (TimeSpan.FromSeconds 1.)
+        source
+        |> Observable.delay (TimeSpan.FromMilliseconds 10.)
+        |> Observable.take 4
+        |> Observable.merge (Observable.retn 1L)
+        |> Observable.exhaustMap (fun _ -> source |> Observable.take 5)
+        |> Observable.toEnumerable
+        |> Seq.toList
+        |> fun ys -> ClassicAssert.AreEqual ([0L..3L], ys)
+
+    [<Test>]
+    member __. ``catchOption maps to 'None' type when 'OnError'`` () =
+        let config = 
+            Config.QuickThrowOnFailure.WithArbitrary [ typeof<GenTestNotification>; typeof<ObservableTests_WithTestNotifications> ]
+
+        Check.One(config,
+            fun xs -> 
+                TestScheduler.usage <| fun sch ->
+                    TestScheduler.coldObservable sch xs
+                    |> Observable.catchOption
+                    |> TestScheduler.subscribeTestObserverStart sch
+                    |> TestObserver.nexts
+                    |> (=) (``concat nexts with first error`` xs
+                            |> List.map TestNotification.toOption)
+        )
+
+    [<Test>]
+    member __.``catchResult maps to 'Error' when 'OnError'`` () =
+        let config = 
+            Config.QuickThrowOnFailure.WithArbitrary [ typeof<GenTestNotification>; typeof<ObservableTests_WithTestNotifications> ]
+
+        Check.One(config,
+            fun xs ->
+                TestScheduler.usage <| fun sch ->
+                    TestScheduler.coldObservable sch xs
+                    |> Observable.catchResult Observable.retn
+                    |> TestScheduler.subscribeTestObserverStart sch
+                    |> TestObserver.nexts
+                    |> (=) (``concat nexts with first error`` xs
+                            |> List.map TestNotification.toResult)
+        )
+
+
+    [<Test>]
+    member __.``consumes the emits by the producer: Test Hot Observable`` () =
+        let config = 
+            Config.QuickThrowOnFailure.WithArbitrary [ typeof<GenTestNotification>; typeof<ObservableTests_WithTestNotifications> ]
+
+        Check.One(config,
+            fun ms x ->
+                TestScheduler.usage <| fun sch ->
+                    TestScheduler.hotObservable sch ms
+                    |> Observable.consumeMap (fun _ -> Observable.retn x)
+                    |> TestScheduler.subscribeTestObserverStart sch
+                    |> TestObserver.nexts
+                    |> fun xs -> (List.replicate xs.Length x) = xs
+        )
+
+    [<Test>]
+    member __.``consumes the optional emits by the producer: Test Hot Observable``() =
+        Check.QuickThrowOnFailure <| fun (xs : int list) (x : int) ->
+        (List.length xs >= 2) ==> lazy
+        TestScheduler.usage <| fun sch ->
+            let completeNow = ref false
+            Observable.ofSeq xs
+            |> Observable.consumeNextOn Scheduler.Immediate (fun _ -> 
+                if !completeNow then None
+                else completeNow := true; Some x)
+            |> TestScheduler.subscribeTestObserverStart sch
+            |> TestObserver.nexts
+            |> (=) [x]
+
+

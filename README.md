@@ -1,14 +1,9 @@
-# FSharp.Control.Reactive
+# p1eXu5.FSharp.Reactive
+
+*The fork of the [FSharp.Control.Reactive](https://github.com/fsprojects/FSharp.Control.Reactive)*
 
 F# wrappers for the [Reactive Extensions (Rx)](http://msdn.microsoft.com/en-us/data/gg577609.aspx)
 
-[![NuGet Status](http://img.shields.io/nuget/v/FSharp.Control.Reactive.svg?style=flat)](https://www.nuget.org/packages/FSharp.Control.Reactive/)
-[![CI Build](https://github.com/fsprojects/FSharp.Control.Reactive/actions/workflows/build.yml/badge.svg)](https://github.com/fsprojects/FSharp.Control.Reactive/actions/workflows/build.yml)
+[![NuGet Status](http://img.shields.io/nuget/v/p1eXu5.FSharp.Reactive.svg?style=flat)](https://www.nuget.org/packages/p1eXu5.FSharp.Reactive/)
+[![CI Build](https://github.com/p1eXu5/p1eXu5.FSharp.Reactive/actions/workflows/build.yml/badge.svg)](https://github.com/p1eXu5/p1eXu5.FSharp.Reactive/actions/workflows/build.yml)
 
-## Maintainer(s)
-
-- [@cloudRoutine](https://github.com/cloudRoutine)
-- [@deviousasti](https://github.com/deviousasti)
-- [@panesofglass](https://github.com/panesofglass)
-
-The default maintainer account for projects under "fsprojects" is [@fsprojectsgit](https://github.com/fsprojectsgit) - F# Community Project Incubation Space (repo management)

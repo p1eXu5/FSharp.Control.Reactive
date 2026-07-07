@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="build.fsx" />
+    <File Path="global.json" />
+    <File Path="LICENSE.txt" />
+    <File Path="pack_local.cmd" />
+    <File Path="README.md" />
+    <File Path="RELEASE_NOTES.md" />
+    <File Path="TESTING_RELEASE_NOTES.md" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/p1eXu5.FSharp.Reactive.Testing/p1eXu5.FSharp.Reactive.Testing.fsproj" />
+    <Project Path="src/p1eXu5.FSharp.Reactive/p1eXu5.FSharp.Reactive.fsproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/p1eXu5.FSharp.Reactive.Tests/p1eXu5.FSharp.Reactive.Tests.fsproj" />
+  </Folder>
+</Solution>
